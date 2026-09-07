@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculator Vault — Discreet Privacy, Disguised as a Calculator</title>
+<meta name="description" content="Calculator Vault is a fully working calculator that hides an encrypted, offline-first vault for your private photos, videos, and files.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  :root{
+    --bg-void:#0B0F17;
+    --bg-slate:#111827;
+    --surface:#1F2937;
+    --border-hair:rgba(255,255,255,0.08);
+    --accent:#10B981;
+    --accent-bright:#22C55E;
+    --text-hi:#FFFFFF;
+    --text-lo:#9CA3AF;
+  }
+  *{-webkit-font-smoothing:antialiased;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg-void);
+    color:var(--text-hi);
+    font-family:'Inter',sans-serif;
+    overflow-x:hidden;
+  }
+  .font-display{font-family:'Plus Jakarta Sans',sans-serif;}
+  .font-mono{font-family:'Space Mono',monospace;}
+
+  /* faint grid texture */
+  .grain-grid{
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 20%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 20%, transparent 75%);
+  }
+
+  .glow-orb{
+    position:absolute;
+    border-radius:9999px;
+    filter:blur(90px);
+    background:radial-gradient(circle, rgba(16,185,129,0.35), transparent 70%);
+    pointer-events:none;
+  }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border-hair);
+  }
+
+  .nav-blur{
+    background:rgba(11,15,23,0.72);
+    backdrop-filter:blur(14px) saturate(140%);
+    -webkit-backdrop-filter:blur(14px) saturate(140%);
+  }
+
+  .tab-btn{
+    position:relative;
+    color:var(--text-lo);
+    transition:color .25s ease;
+  }
+  .tab-btn.active{ color:var(--text-hi); }
+  .tab-btn .underline-bar{
+    position:absolute; left:0; right:0; bottom:-1px; height:2px;
+    background:linear-gradient(90deg, var(--accent), var(--accent-bright));
+    transform:scaleX(0); transform-origin:left;
+    transition:transform .3s ease;
+    border-radius:2px;
+  }
+  .tab-btn.active .underline-bar{ transform:scaleX(1); }
+
+  .view{ display:none; }
+  .view.active{ display:block; animation:fadeUp .45s ease both; }
+  @keyframes fadeUp{
+    from{opacity:0; transform:translateY(10px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+
+  /* Phone mockup */
+  .phone-shell{
+    width:280px; height:568px;
+    background:#05070B;
+    border-radius:44px;
+    border:2px solid rgba(255,255,255,0.09);
+    box-shadow:
+      0 0 0 8px #05070B,
+      0 30px 80px -20px rgba(16,185,129,0.25),
+      0 40px 100px -30px rgba(0,0,0,0.8);
+    position:relative;
+    overflow:hidden;
+  }
+  .phone-notch{
+    position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:120px; height:22px; background:#05070B;
+    border-bottom-left-radius:16px; border-bottom-right-radius:16px;
+    z-index:20;
+  }
+  .phone-screen{
+    position:absolute; inset:8px;
+    border-radius:36px;
+    overflow:hidden;
+    background:linear-gradient(180deg, #0D1420, #0A0E15);
+  }
+
+  .calc-key{
+    background:#1A2331;
+    border:1px solid rgba(255,255,255,0.05);
+    transition:transform .15s ease, background .15s ease;
+  }
+  .calc-key:active{ transform:scale(0.94); }
+  .calc-key.op{ background:#233047; color:var(--accent-bright); }
+  .calc-key.eq{ background:var(--accent); color:#06170F; font-weight:700; }
+
+  .calc-face, .vault-face{
+    position:absolute; inset:0;
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .vault-face{ opacity:0; transform:scale(0.96); pointer-events:none; }
+  .phone-shell.unlocked .calc-face{ opacity:0; transform:scale(1.04); }
+  .phone-shell.unlocked .vault-face{ opacity:1; transform:scale(1); pointer-events:auto; }
+
+  .lock-badge{
+    position:absolute; bottom:-6px; right:-6px;
+    width:22px; height:22px; border-radius:9999px;
+    background:linear-gradient(135deg, var(--accent-bright), var(--accent));
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 14px rgba(34,197,94,0.55);
+  }
+
+  .ring-pulse::before{
+    content:'';
+    position:absolute; inset:-6px;
+    border-radius:inherit;
+    border:1px solid rgba(16,185,129,0.5);
+    animation:pulseRing 2.2s ease-out infinite;
+  }
+  @keyframes pulseRing{
+    0%{ transform:scale(1); opacity:0.6; }
+    100%{ transform:scale(1.35); opacity:0; }
+  }
+
+  .feature-card{ transition:border-color .25s ease, transform .25s ease; }
+  .feature-card:hover{ border-color:rgba(16,185,129,0.4); transform:translateY(-3px); }
+
+  .policy-anchor:target{ scroll-margin-top:120px; }
+
+  ::selection{ background:rgba(16,185,129,0.35); color:#fff; }
+
+  ::-webkit-scrollbar{ width:10px; }
+  ::-webkit-scrollbar-track{ background:var(--bg-void); }
+  ::-webkit-scrollbar-thumb{ background:#243043; border-radius:8px; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+</style>
+</head>
+<body class="antialiased">
+
+<!-- ================= NAVBAR ================= -->
+<header class="fixed top-0 inset-x-0 z-50 nav-blur border-b" style="border-color:var(--border-hair);">
+  <div class="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
+    <a href="#" onclick="showView('home')" class="flex items-center gap-2.5 group">
+      <div class="relative w-9 h-9 rounded-xl flex items-center justify-center" style="background:var(--surface); border:1px solid var(--border-hair);">
+        <i data-lucide="calculator" class="w-5 h-5" style="color:var(--text-hi);"></i>
+        <span class="lock-badge">
+          <i data-lucide="lock" class="w-2.5 h-2.5" style="color:#06170F;"></i>
+        </span>
+      </div>
+      <span class="font-display font-bold text-[15px] tracking-tight">Calculator Vault</span>
+    </a>
+
+    <nav class="hidden md:flex items-center gap-8 font-display text-sm font-medium">
+      <button class="tab-btn active pb-1" data-tab="home" onclick="showView('home')">Home<span class="underline-bar"></span></button>
+      <button class="tab-btn pb-1" data-tab="privacy" onclick="showView('privacy')">Privacy Policy<span class="underline-bar"></span></button>
+      <button class="tab-btn pb-1" data-tab="terms" onclick="showView('terms')">Terms of Service<span class="underline-bar"></span></button>
+    </nav>
+
+    <a href="mailto:devmainulislam@gmail.com" class="hidden md:inline-flex items-center gap-2 text-sm font-semibold font-display px-4 py-2 rounded-lg" style="background:var(--accent); color:#06170F;">
+      <i data-lucide="mail" class="w-4 h-4"></i>
+      Contact Support
+    </a>
+
+    <button id="burger" class="md:hidden w-10 h-10 flex items-center justify-center rounded-lg" style="background:var(--surface); border:1px solid var(--border-hair);" onclick="toggleMenu()">
+      <i data-lucide="menu" class="w-5 h-5"></i>
+    </button>
+  </div>
+
+  <!-- mobile menu -->
+  <div id="mobileMenu" class="md:hidden hidden border-t px-5 py-4 space-y-3" style="border-color:var(--border-hair); background:var(--bg-slate);">
+    <button class="w-full text-left font-display text-sm py-2" onclick="showView('home'); toggleMenu();">Home</button>
+    <button class="w-full text-left font-display text-sm py-2" onclick="showView('privacy'); toggleMenu();">Privacy Policy</button>
+    <button class="w-full text-left font-display text-sm py-2" onclick="showView('terms'); toggleMenu();">Terms of Service</button>
+    <a href="mailto:devmainulislam@gmail.com" class="flex items-center gap-2 text-sm font-semibold font-display px-4 py-2.5 rounded-lg justify-center" style="background:var(--accent); color:#06170F;">
+      <i data-lucide="mail" class="w-4 h-4"></i> Contact Support
+    </a>
+  </div>
+</header>
+
+<main class="pt-16">
+
+<!-- ================= HOME VIEW ================= -->
+<section id="view-home" class="view active">
+
+  <!-- HERO -->
+  <div class="relative pt-16 pb-24 px-5 sm:px-8 overflow-hidden">
+    <div class="absolute inset-0 grain-grid"></div>
+    <div class="glow-orb w-[500px] h-[500px] -top-40 left-1/2 -translate-x-1/2"></div>
+
+    <div class="relative max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono mb-6" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:var(--accent-bright);">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+          Steganographic privacy for Android
+        </div>
+
+        <h1 class="font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.3rem] leading-[1.08] tracking-tight mb-6">
+          Discreet privacy,<br>
+          disguised as a<br>
+          <span style="color:var(--accent-bright);">calculator.</span>
+        </h1>
+
+        <p class="text-base sm:text-lg leading-relaxed max-w-md mb-9" style="color:var(--text-lo);">
+          A fully working math calculator on the surface — an encrypted sanctuary for your private photos, videos, notes, and documents underneath.
+        </p>
+
+        <div class="flex flex-wrap items-center gap-4">
+          <a href="#" class="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl font-display font-bold text-sm" style="background:var(--accent); color:#06170F; box-shadow:0 10px 30px -8px rgba(16,185,129,0.6);">
+            <i data-lucide="download" class="w-4.5 h-4.5"></i>
+            Get it on Google Play
+          </a>
+          <button onclick="showView('privacy')" class="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-display font-semibold text-sm" style="border:1px solid var(--border-hair); color:var(--text-hi);">
+            View Privacy Policy
+          </button>
+        </div>
+
+        <div class="flex items-center gap-6 mt-10 pt-8" style="border-top:1px solid var(--border-hair);">
+          <div>
+            <div class="font-display font-bold text-lg">100%</div>
+            <div class="text-xs" style="color:var(--text-lo);">Offline-first</div>
+          </div>
+          <div class="w-px h-8" style="background:var(--border-hair);"></div>
+          <div>
+            <div class="font-display font-bold text-lg">AES-256</div>
+            <div class="text-xs" style="color:var(--text-lo);">Local encryption</div>
+          </div>
+          <div class="w-px h-8" style="background:var(--border-hair);"></div>
+          <div>
+            <div class="font-display font-bold text-lg">0</div>
+            <div class="text-xs" style="color:var(--text-lo);">Servers, ever</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHONE MOCKUP -->
+      <div class="flex justify-center lg:justify-end">
+        <div class="relative">
+          <div class="phone-shell ring-pulse" id="phoneShell">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+
+              <!-- CALCULATOR FACE -->
+              <div class="calc-face flex flex-col p-4 pt-9">
+                <div class="text-right px-2 mb-4">
+                  <div class="text-[11px] font-mono" style="color:var(--text-lo);">Calculator Vault</div>
+                  <div id="calcDisplay" class="font-mono text-3xl font-bold mt-2 truncate">0</div>
+                </div>
+                <div class="grid grid-cols-4 gap-1.5 flex-1">
+                  <button class="calc-key rounded-lg text-xs font-mono" onclick="calcPress('C')">C</button>
+                  <button class="calc-key rounded-lg text-xs font-mono" onclick="calcPress('()')">()</button>
+                  <button class="calc-key rounded-lg text-xs font-mono" onclick="calcPress('%')">%</button>
+                  <button class="calc-key op rounded-lg text-xs font-mono" onclick="calcPress('÷')">÷</button>
+
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('7')">7</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('8')">8</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('9')">9</button>
+                  <button class="calc-key op rounded-lg text-xs font-mono" onclick="calcPress('×')">×</button>
+
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('4')">4</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('5')">5</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('6')">6</button>
+                  <button class="calc-key op rounded-lg text-xs font-mono" onclick="calcPress('−')">−</button>
+
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('1')">1</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('2')">2</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('3')">3</button>
+                  <button class="calc-key op rounded-lg text-xs font-mono" onclick="calcPress('+')">+</button>
+
+                  <button class="calc-key rounded-lg text-sm font-mono col-span-2" onclick="calcPress('0')">0</button>
+                  <button class="calc-key rounded-lg text-sm font-mono" onclick="calcPress('.')">.</button>
+                  <button class="calc-key eq rounded-lg text-xs font-mono" onclick="tryUnlock()">=</button>
+                </div>
+                <p class="text-center text-[10px] mt-3 font-mono" style="color:var(--text-lo);">tap “=” to preview the vault unlock</p>
+              </div>
+
+              <!-- VAULT FACE -->
+              <div class="vault-face flex flex-col items-center justify-center px-6 text-center">
+                <div class="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35);">
+                  <i data-lucide="shield-check" class="w-8 h-8" style="color:var(--accent-bright);"></i>
+                </div>
+                <div class="font-display font-bold text-lg mb-1">Vault Unlocked</div>
+                <p class="text-xs mb-6" style="color:var(--text-lo);">Your encrypted files, decrypted locally on-device only.</p>
+                <div class="grid grid-cols-3 gap-2 w-full mb-6">
+                  <div class="aspect-square rounded-lg flex items-center justify-center" style="background:var(--surface); border:1px solid var(--border-hair);"><i data-lucide="image" class="w-4 h-4" style="color:var(--text-lo);"></i></div>
+                  <div class="aspect-square rounded-lg flex items-center justify-center" style="background:var(--surface); border:1px solid var(--border-hair);"><i data-lucide="video" class="w-4 h-4" style="color:var(--text-lo);"></i></div>
+                  <div class="aspect-square rounded-lg flex items-center justify-center" style="background:var(--surface); border:1px solid var(--border-hair);"><i data-lucide="file-text" class="w-4 h-4" style="color:var(--text-lo);"></i></div>
+                </div>
+                <button onclick="lockVault()" class="text-xs font-mono px-4 py-2 rounded-lg flex items-center gap-1.5" style="background:var(--surface); border:1px solid var(--border-hair); color:var(--text-lo);">
+                  <i data-lucide="lock" class="w-3.5 h-3.5"></i> Re-lock
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="max-w-6xl mx-auto px-5 sm:px-8 pb-28">
+    <div class="mb-12 max-w-lg">
+      <h2 class="font-display font-extrabold text-3xl tracking-tight mb-3">Built like a vault, not a photo app.</h2>
+      <p style="color:var(--text-lo);">Every design decision starts from one question: what happens if someone else picks up this phone?</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-5">
+      <div class="feature-card card rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center mb-5" style="background:rgba(16,185,129,0.1);">
+          <i data-lucide="eye-off" class="w-5 h-5" style="color:var(--accent-bright);"></i>
+        </div>
+        <h3 class="font-display font-bold text-base mb-2">Stealth calculator disguise</h3>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">Looks and calculates exactly like an everyday calculator app. Enter your secret PIN as a calculation to unlock the vault beneath it.</p>
+      </div>
+
+      <div class="feature-card card rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center mb-5" style="background:rgba(16,185,129,0.1);">
+          <i data-lucide="lock-keyhole" class="w-5 h-5" style="color:var(--accent-bright);"></i>
+        </div>
+        <h3 class="font-display font-bold text-base mb-2">Device-level encryption</h3>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">Bank-grade local encryption keeps every photo, video, and document locked to your device — unreadable to any other app.</p>
+      </div>
+
+      <div class="feature-card card rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center mb-5" style="background:rgba(16,185,129,0.1);">
+          <i data-lucide="cloud" class="w-5 h-5" style="color:var(--accent-bright);"></i>
+        </div>
+        <h3 class="font-display font-bold text-base mb-2">Google Drive cloud backup</h3>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">Back up and restore encrypted vault snapshots directly to your own personal Google Drive — never our servers.</p>
+      </div>
+
+      <div class="feature-card card rounded-2xl p-6">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center mb-5" style="background:rgba(16,185,129,0.1);">
+          <i data-lucide="wifi-off" class="w-5 h-5" style="color:var(--accent-bright);"></i>
+        </div>
+        <h3 class="font-display font-bold text-base mb-2">Zero external tracking</h3>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">100% offline-first architecture. We never host a user database and never see, scan, or track your private media.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA STRIP -->
+  <div class="border-t" style="border-color:var(--border-hair);">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div>
+        <h3 class="font-display font-bold text-xl mb-1">Ready to hide in plain sight?</h3>
+        <p class="text-sm" style="color:var(--text-lo);">Free to download. Your files never leave your device unless you say so.</p>
+      </div>
+      <a href="#" class="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl font-display font-bold text-sm whitespace-nowrap" style="background:var(--accent); color:#06170F;">
+        <i data-lucide="download" class="w-4.5 h-4.5"></i>
+        Get it on Google Play
+      </a>
+    </div>
+  </div>
+
+</section>
+
+<!-- ================= PRIVACY POLICY VIEW ================= -->
+<section id="view-privacy" class="view">
+  <div class="max-w-3xl mx-auto px-5 sm:px-8 py-16">
+
+    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono mb-5" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:var(--accent-bright);">
+      <i data-lucide="shield" class="w-3.5 h-3.5"></i> Google Play & Google Cloud OAuth compliant
+    </div>
+    <h1 class="font-display font-extrabold text-3xl sm:text-4xl tracking-tight mb-3">Privacy Policy</h1>
+    <p class="text-sm mb-12" style="color:var(--text-lo);">Last updated: January 2026</p>
+
+    <div class="space-y-10">
+
+      <div id="intro" class="policy-anchor">
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="book-open" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">1. Introduction</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          Calculator Vault ("the App") is built around a single principle: your private files stay private, and stay on your device. This policy explains, in plain language, exactly what happens (and what does not happen) to your data when you use the App. We are strictly committed to offline-first security and to minimizing what we collect to the absolute minimum required for the App to function.
+        </p>
+      </div>
+
+      <div id="data" class="policy-anchor">
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="database" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">2. Data Collection & Handling</h2>
+        </div>
+        <p class="text-sm leading-relaxed mb-3" style="color:var(--text-lo);">
+          The App does <strong style="color:var(--text-hi);">not</strong> harvest, sell, transmit, or otherwise share your photos, videos, notes, or documents to any developer-owned server. All vault content is encrypted and stored locally on your device by default.
+        </p>
+        <ul class="space-y-2 text-sm" style="color:var(--text-lo);">
+          <li class="flex gap-2.5"><i data-lucide="check" class="w-4 h-4 shrink-0 mt-0.5" style="color:var(--accent-bright);"></i> We do not operate a remote database of user files.</li>
+          <li class="flex gap-2.5"><i data-lucide="check" class="w-4 h-4 shrink-0 mt-0.5" style="color:var(--accent-bright);"></i> We do not scan, analyze, or index the content of your vault.</li>
+          <li class="flex gap-2.5"><i data-lucide="check" class="w-4 h-4 shrink-0 mt-0.5" style="color:var(--accent-bright);"></i> We do not sell or share data with advertisers or third parties.</li>
+        </ul>
+      </div>
+
+      <div id="drive" class="policy-anchor">
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="cloud-cog" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">3. Google Drive API Access & Permissions</h2>
+        </div>
+        <p class="text-sm leading-relaxed mb-4" style="color:var(--text-lo);">
+          The optional cloud backup feature uses the Google Drive API under the following OAuth scopes:
+        </p>
+        <div class="card rounded-xl p-4 mb-4 font-mono text-xs space-y-2">
+          <div class="flex items-center gap-2"><i data-lucide="key-round" class="w-3.5 h-3.5" style="color:var(--accent-bright);"></i><span style="color:var(--text-hi);">https://www.googleapis.com/auth/drive.file</span></div>
+          <div class="flex items-center gap-2"><i data-lucide="key-round" class="w-3.5 h-3.5" style="color:var(--accent-bright);"></i><span style="color:var(--text-hi);">https://www.googleapis.com/auth/drive.appdata</span></div>
+        </div>
+        <p class="text-sm leading-relaxed mb-3" style="color:var(--text-lo);">
+          These scopes are used <strong style="color:var(--text-hi);">solely</strong> to store and restore encrypted vault backup snapshots that you initiate. The App can only access files it creates itself — it cannot view, list, or modify any other file in your Google Drive account.
+        </p>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          Our use and transfer of information received from Google APIs adheres to the <strong style="color:var(--text-hi);">Google API Services User Data Policy</strong>, including the Limited Use requirements. Backup data remains encrypted before it ever leaves your device, and only you hold the key to decrypt it.
+        </p>
+      </div>
+
+      <div id="local" class="policy-anchor">
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="fingerprint" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">4. Local Storage & PIN Security</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          Your master PIN is never stored in plain text. Only a one-way cryptographic hash of your PIN, along with optional biometric unlock configuration, is stored strictly within Android's local DataStore on your device. This data is sandboxed to the App and is not accessible to us or to any other application.
+        </p>
+      </div>
+
+      <div id="contact-privacy" class="policy-anchor">
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="mail" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">5. Developer Contact</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          For any privacy inquiries, data questions, or concerns about this policy, reach the developer directly at
+          <a href="mailto:devmainulislam@gmail.com" class="font-semibold" style="color:var(--accent-bright);">devmainulislam@gmail.com</a>.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= TERMS OF SERVICE VIEW ================= -->
+<section id="view-terms" class="view">
+  <div class="max-w-3xl mx-auto px-5 sm:px-8 py-16">
+
+    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono mb-5" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:var(--accent-bright);">
+      <i data-lucide="file-check-2" class="w-3.5 h-3.5"></i> Please read before use
+    </div>
+    <h1 class="font-display font-extrabold text-3xl sm:text-4xl tracking-tight mb-3">Terms of Service</h1>
+    <p class="text-sm mb-12" style="color:var(--text-lo);">Last updated: January 2026</p>
+
+    <div class="space-y-10">
+
+      <div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="handshake" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">1. Acceptance of Terms</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          By downloading, installing, or using Calculator Vault, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, please do not use the App.
+        </p>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="badge-check" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">2. Permitted Use</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          Calculator Vault is intended solely as a personal, secure storage tool for lawful private content. Any use of the App to store or conceal illegal content is strictly prohibited and is the sole responsibility of the user.
+        </p>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="user-cog" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">3. User Responsibilities</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          You are solely responsible for remembering your secret PIN code. Because the vault is encrypted locally and we hold no copy of your PIN, we have no ability to recover it on your behalf under any circumstances.
+        </p>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="triangle-alert" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">4. Warranty Disclaimer</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          The App is provided "AS IS" and "AS AVAILABLE," without warranty of any kind. We are not liable for data loss resulting from hardware failure, device reset, app uninstallation, operating system changes, or a forgotten master PIN. Users are strongly encouraged to maintain their own encrypted backups.
+        </p>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <i data-lucide="life-buoy" class="w-4.5 h-4.5" style="color:var(--accent-bright);"></i>
+          <h2 class="font-display font-bold text-lg">5. Support & Inquiries</h2>
+        </div>
+        <p class="text-sm leading-relaxed" style="color:var(--text-lo);">
+          For support, questions, or feedback regarding these terms, contact the developer at
+          <a href="mailto:devmainulislam@gmail.com" class="font-semibold" style="color:var(--accent-bright);">devmainulislam@gmail.com</a>.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= FOOTER ================= -->
+<footer class="border-t" style="border-color:var(--border-hair); background:var(--bg-slate);">
+  <div class="max-w-6xl mx-auto px-5 sm:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">
+    <div class="flex items-center gap-2.5">
+      <div class="relative w-8 h-8 rounded-lg flex items-center justify-center" style="background:var(--surface); border:1px solid var(--border-hair);">
+        <i data-lucide="calculator" class="w-4 h-4"></i>
+      </div>
+      <span class="font-display font-semibold text-sm">Calculator Vault</span>
+    </div>
+    <div class="flex items-center gap-6 text-xs font-mono" style="color:var(--text-lo);">
+      <button onclick="showView('privacy')" class="hover:text-white transition-colors">Privacy Policy</button>
+      <button onclick="showView('terms')" class="hover:text-white transition-colors">Terms of Service</button>
+      <a href="mailto:devmainulislam@gmail.com" class="hover:text-white transition-colors">Contact</a>
+    </div>
+    <p class="text-xs" style="color:var(--text-lo);">© 2026 Calculator Vault · Md Mainul Islam</p>
+  </div>
+</footer>
+
+<script>
+  lucide.createIcons();
+
+  // ---- Tab / view switching ----
+  function showView(name){
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-btn[data-tab="' + name + '"]').forEach(b => b.classList.add('active'));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function toggleMenu(){
+    document.getElementById('mobileMenu').classList.toggle('hidden');
+  }
+
+  // ---- Mini calculator demo in the phone mockup ----
+  let calcVal = '0';
+  function calcPress(key){
+    if (key === 'C'){ calcVal = '0'; }
+    else if (calcVal === '0' && !isNaN(key)) { calcVal = key; }
+    else { calcVal += key; }
+    document.getElementById('calcDisplay').textContent = calcVal.slice(-9);
+  }
+
+  function tryUnlock(){
+    document.getElementById('phoneShell').classList.add('unlocked');
+    lucide.createIcons();
+  }
+
+  function lockVault(){
+    document.getElementById('phoneShell').classList.remove('unlocked');
+    calcVal = '0';
+    document.getElementById('calcDisplay').textContent = calcVal;
+  }
+</script>
+
+</body>
+  </html>
